@@ -194,7 +194,8 @@
             Clock: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
             ArrowLeft: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>,
             ArrowRight: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>,
-            Key: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+            Key: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>,
+            Info: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         };
 
         let audioCtx = null;
@@ -348,6 +349,7 @@
             const [wordLimit, setWordLimit] = useState(100);
             const [absentStudents, setAbsentStudents] = useState([]);
             const [isFireRound, setIsFireRound] = useState(false);
+            const [showTutorial, setShowTutorial] = useState(false);
             
             // Student & Vocab State
             const [studentsList, setStudentsList] = useState(DEFAULT_STUDENTS);
@@ -874,7 +876,14 @@
             if (gameState === 'setup') return (
                 <div className="p-4 flex items-center justify-center min-h-screen overflow-auto bg-slate-50">
                     <div className="max-w-4xl w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 my-8">
-                        <div className="bg-blue-600 p-6 text-white text-center">
+                        <div className="bg-blue-600 p-6 text-white text-center relative">
+                            <button 
+                                onClick={() => setShowTutorial(true)} 
+                                className="absolute top-6 right-6 text-blue-200 hover:text-white transition-colors" 
+                                title="How to Play"
+                            >
+                                <Icons.Info />
+                            </button>
                             <h1 className="text-3xl font-bold mb-1 flex items-center justify-center gap-3"><Icons.Shield /> Shas Milim Gameshow</h1>
                             <p className="opacity-90 italic text-sm">Interactive Vocabulary Game</p>
                         </div>
@@ -1025,6 +1034,98 @@
                                         </div>
                                     </div>
                                     <button onClick={initQuizMode} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-lg shadow-lg mt-4">Start Quiz</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showTutorial && (
+                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                            <div className="bg-white rounded-[2rem] p-8 max-w-3xl w-full shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+                                <button onClick={()=>setShowTutorial(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full transition-colors"><Icons.X /></button>
+                                <h3 className="text-3xl font-black text-slate-800 mb-6 flex items-center gap-3 justify-center"><Icons.Info /> How to Play</h3>
+                                
+                                <div className="flex-grow overflow-y-auto custom-scrollbar space-y-8 pr-2">
+                                    
+                                    {/* Game Modes Section */}
+                                    <section>
+                                        <h4 className="text-lg font-black text-blue-600 mb-4 uppercase tracking-widest border-b border-blue-100 pb-2">Game Modes</h4>
+                                        <div className="grid md:grid-cols-3 gap-4">
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                                <div className="flex items-center gap-2 mb-2 text-green-600 font-bold"><Icons.Play /> Standard</div>
+                                                <p className="text-sm text-slate-600 leading-relaxed">Turn-based game cycling through all students. Incorrect answers eliminate students for the round.</p>
+                                            </div>
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                                <div className="flex items-center gap-2 mb-2 text-orange-500 font-bold"><Icons.Zap /> Solo Challenge</div>
+                                                <p className="text-sm text-slate-600 leading-relaxed">One student ("Challenger") races against the clock to answer as many questions as possible in 60s.</p>
+                                            </div>
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                                <div className="flex items-center gap-2 mb-2 text-indigo-600 font-bold"><Icons.HelpCircle /> Quiz Mode</div>
+                                                <p className="text-sm text-slate-600 leading-relaxed">Classroom mode. Projects a multiple-choice question on the board. No individual turns. Reveal answers at the end.</p>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* Features Section */}
+                                    <section>
+                                        <h4 className="text-lg font-black text-blue-600 mb-4 uppercase tracking-widest border-b border-blue-100 pb-2">Key Features</h4>
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            <div className="flex gap-4 items-start">
+                                                <div className="p-3 bg-blue-100 text-blue-600 rounded-lg"><Icons.Users /></div>
+                                                <div>
+                                                    <h5 className="font-bold text-slate-800">Team Play</h5>
+                                                    <p className="text-sm text-slate-500">Automatically splits class into Team A & Team B. Scores are tracked in Standard mode.</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-4 items-start">
+                                                <div className="p-3 bg-red-100 text-red-600 rounded-lg"><Icons.Flame /></div>
+                                                <div>
+                                                    <h5 className="font-bold text-slate-800">Streak Counter</h5>
+                                                    <p className="text-sm text-slate-500">Counts consecutive correct answers by the class. Try to beat the record!</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-4 items-start">
+                                                <div className="p-3 bg-yellow-100 text-yellow-600 rounded-lg"><Icons.Trophy /></div>
+                                                <div>
+                                                    <h5 className="font-bold text-slate-800">Fire Round</h5>
+                                                    <p className="text-sm text-slate-500">Survivor mode available after Round 1. Only students who answered correctly advance.</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-4 items-start">
+                                                <div className="p-3 bg-slate-100 text-slate-600 rounded-lg"><Icons.FileSpreadsheet /></div>
+                                                <div>
+                                                    <h5 className="font-bold text-slate-800">Teacher Logs</h5>
+                                                    <p className="text-sm text-slate-500">Tracks mistakes per student. Auto-saves daily and resets tomorrow. Export to Excel/CSV.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* Controls Section */}
+                                    <section>
+                                        <h4 className="text-lg font-black text-blue-600 mb-4 uppercase tracking-widest border-b border-blue-100 pb-2">Controls & Setup</h4>
+                                        <div className="space-y-4">
+                                            <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-wrap gap-4 items-center justify-between text-sm">
+                                                <div className="flex items-center gap-2"><span className="bg-white/20 px-2 py-1 rounded font-mono">Space</span> <span>Correct</span></div>
+                                                <div className="flex items-center gap-2"><span className="bg-white/20 px-2 py-1 rounded font-mono">Backspace</span> <span>Incorrect</span></div>
+                                                <div className="flex items-center gap-2"><span className="bg-white/20 px-2 py-1 rounded font-mono">Ctrl + Z</span> <span>Undo</span></div>
+                                            </div>
+                                            
+                                            <div className="grid md:grid-cols-2 gap-4">
+                                                <div className="border p-4 rounded-xl">
+                                                    <h5 className="font-bold flex items-center gap-2 mb-2"><Icons.Users size={16}/> Class Manager</h5>
+                                                    <p className="text-xs text-slate-500">Add/Remove students manually or upload a CSV list. Data is saved automatically.</p>
+                                                </div>
+                                                <div className="border p-4 rounded-xl">
+                                                    <h5 className="font-bold flex items-center gap-2 mb-2"><Icons.Book size={16}/> Word Manager</h5>
+                                                    <p className="text-xs text-slate-500">Upload custom vocabulary lists via CSV (Column A: ID, B: Word, C: Meaning).</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                </div>
+                                <div className="mt-6 pt-4 border-t text-center">
+                                    <button onClick={()=>setShowTutorial(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-8 rounded-xl transition-all">Got it!</button>
                                 </div>
                             </div>
                         </div>
