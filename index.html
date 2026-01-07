@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shas Milim Gameshow</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and Babel for browser-side JSX parsing -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background-color: #f8fafc; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+        .buzzer-shake { animation: shake 0.1s ease-in-out 0s infinite; }
+        
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop-in { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        @keyframes flamePulse {
+            0%, 100% { transform: scale(1); filter: brightness(100%); }
+            50% { transform: scale(1.1); filter: brightness(120%); }
+        }
+        .animate-flame { animation: flamePulse 1s ease-in-out infinite; }
+
+        /* Ensure no scroll only during active gameplay */
+        body.playing-active { overflow: hidden; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        const DEFAULT_VOCABULARY = [
+            { id: 1, word: "תַּנָא (תַּנָאִים)", meaning: "חכמים of the משנה (from הלל and שמאי until רבי יהודה הנשיא)" },
+            { id: 2, word: "אַמוֹרָא (אַמוֹרָאִים)", meaning: "חכמים of the גמרא (from רב and שמאול until רבינא & רב אשי)" },
+            { id: 3, word: "עָמוּד", meaning: "One side of a page" },
+            { id: 4, word: "דַף (בלעט)", meaning: "A page (Both sides)" },
+            { id: 5, word: "סוּגְיָא", meaning: "A discussion in the גמרא (about a particular topic)" },
+            { id: 6, word: "שַׁקְלָא וְטַרְיָא", meaning: "The back and forth discussion of the גמרא (Lit. Give and Take)" },
+            { id: 7, word: "שְׁאֵלָה", meaning: "A question that asks for information" },
+            { id: 8, word: "קֵשְׁיָא", meaning: "A question that something doesn't make sense" },
+            { id: 9, word: "רְאָיָה", meaning: "A proof (usually proves a statement based on logic or תנא words)" },
+            { id: 10, word: "דְחִיָה (שְׁלָאג אָף)", meaning: "A 'disproof' of a ראיה" },
+            { id: 11, word: "סְתִּירָה", meaning: "A contradiction" },
+            { id: 12, word: "תִּירוּץ", meaning: "An answer" },
+            { id: 13, word: "הַוָה אַמִינָא", meaning: "The assumption of the גמרא (Lit. I would have said)" },
+            { id: 14, word: "מַסְקָנָא", meaning: "The conclusion of the גמרא (where הַוָה אַמִינָא is corrected)" },
+            { id: 15, word: "בָּרַיִיתָא", meaning: "A teaching of a תנא that is not in the משנה" },
+            { id: 16, word: "הֵיכִי", meaning: "How" },
+            { id: 17, word: "הָכִי", meaning: "Like this/so" },
+            { id: 18, word: "הֵיכָא", meaning: "Where" },
+            { id: 19, word: "הָכָא", meaning: "Here" },
+            { id: 20, word: "הָתָם", meaning: "There" },
+            { id: 21, word: "וּרְמִינְהוּ", meaning: "And we have a סְתִּירָה from a ברייתא" },
+            { id: 22, word: "תַּנְיָא", meaning: "The ברייתא taught / we learned in a ברייתא" },
+            { id: 23, word: "דְ...", meaning: "1. because, 2. that, 3. of (as a prefix)" },
+            { id: 24, word: "גָמַר", meaning: "1. He finished, 2. He Learned" },
+            { id: 25, word: "כּוּלֵי עַלְמָא (כ\"\"ע)", meaning: "Everyone (Lit. The whole world)" },
+            { id: 26, word: "תו ּ", meaning: "More" },
+            { id: 27, word: "אָזִיל", meaning: "Go/continue" },
+            { id: 28, word: "יָהַב", meaning: "He gave" },
+            { id: 29, word: "אִיבַּעְיָא", meaning: "It was a שאלה" },
+            { id: 30, word: "לֵיה", meaning: "To him/for him" },
+            { id: 31, word: "לְהוּ", meaning: "To them/for them" },
+            { id: 32, word: "מַהוּ", meaning: "What is the דין?" },
+            { id: 33, word: "אִם תִּמְצֵי לֹוֹמַר (את\"\"ל)", meaning: "If you want to try and say / if you are able to say" },
+            { id: 34, word: "חַד", meaning: "One" },
+            { id: 35, word: "דִילְמָא", meaning: "Maybe" },
+            { id: 36, word: "בָּעִי", meaning: "1. Want 2. Need 3. Ask" },
+            { id: 37, word: "תָּא שְׁמַע (ת\"\"ש)", meaning: "Come and hear [a proof]" },
+            { id: 38, word: "מֵתִיבֵי", meaning: "We have a קשיא from the words of a תנא" },
+            { id: 39, word: "מאי", meaning: "What" },
+            { id: 40, word: "דִיוּק", meaning: "An inference" },
+            { id: 41, word: "שְׁמַע מִינָה", meaning: "We have a proof from it" },
+            { id: 42, word: "נַמִי", meaning: "Also" },
+            { id: 43, word: "תָּנוּ רַבָּנָן (ת\"\"ר)", meaning: "The חכמים taught in a ברייתא" },
+            { id: 44, word: "לְמֵימְרָא", meaning: "Is this saying…?" },
+            { id: 45, word: "קַמָא", meaning: "First" },
+            { id: 46, word: "מאן", meaning: "Who/someone" },
+            { id: 47, word: "דָמִי", meaning: "Similar/compared" },
+            { id: 48, word: "אִיתְּמַר", meaning: "It was said (a מחלוקת אמוראים)" },
+            { id: 49, word: "כַּוָוְתֵיה", meaning: "Like him" },
+            { id: 50, word: "נֵימָא", meaning: "We will say" },
+            { id: 51, word: "אֵימָא", meaning: "I will say" },
+            { id: 52, word: "תֵּימָא", meaning: "You will say" },
+            { id: 53, word: "תִּיוּבְתָּא", meaning: "A proof against someone" },
+            { id: 54, word: "א...", meaning: "On (as a prefix)" },
+            { id: 55, word: "בִּשְׁלָמָא", meaning: "It is understandable" },
+            { id: 56, word: "אִיכָּא", meaning: "There is" },
+            { id: 57, word: "רֵישָׁא", meaning: "The beginning" },
+            { id: 58, word: "סֵיפָא", meaning: "The end" },
+            { id: 59, word: "בַּהַדֵי", meaning: "Together with" },
+            { id: 60, word: "הַדָדֵי", meaning: "Each other" },
+            { id: 61, word: "אַתִי", meaning: "Come" },
+            { id: 62, word: "האי", meaning: "This" },
+            { id: 63, word: "נָפַק", meaning: "Went out" },
+            { id: 64, word: "סָבַר", meaning: "He held/he thought/he reasoned" },
+            { id: 65, word: "אַנַן", meaning: "We/us" },
+            { id: 66, word: "הָא", meaning: "This/but" },
+            { id: 67, word: "מַנִי", meaning: "Who is it" },
+            { id: 68, word: "צַפְרָא", meaning: "Morning" },
+            { id: 69, word: "חָזִי", meaning: "See" },
+            { id: 70, word: "אַדְרַבָּה", meaning: "Just the opposite" },
+            { id: 71, word: "תְּנַן", meaning: "We learned in a משנה" },
+            { id: 72, word: "הַשְׁתָּא", meaning: "Now" },
+            { id: 73, word: "עָבַד", meaning: "He did/he made" },
+            { id: 74, word: "מַר", meaning: "Master/sir" },
+            { id: 75, word: "תִּלַת", meaning: "Three" },
+            { id: 76, word: "מְסַיֵּיעַ", meaning: "It is a proof" },
+            { id: 77, word: "אֵינִי", meaning: "Can it be? / Is this so?" },
+            { id: 78, word: "שָׁנָה", meaning: "He taught" },
+            { id: 79, word: "שָׁאנִי", meaning: "Different" },
+            { id: 80, word: "אִין", meaning: "Yes" },
+            { id: 81, word: "לן", meaning: "To us/for us" },
+            { id: 82, word: "שָׁרָא", meaning: "He permitted" },
+            { id: 83, word: "טִירְחָא", meaning: "Bother" },
+            { id: 84, word: "טָעוּתָא", meaning: "A mistake" },
+            { id: 85, word: "אִילֵימָא", meaning: "If we say" },
+            { id: 86, word: "אִלְמָלֵא", meaning: "If it was to be" },
+            { id: 87, word: "לֵית / לֵיתָא / לֵיכָּא", meaning: "There isn't" },
+            { id: 88, word: "נִיחָא", meaning: "Pleasing" },
+            { id: 89, word: "סָלַק", meaning: "Went up / removed" },
+            { id: 90, word: "תַּמַנִי", meaning: "Eight" },
+            { id: 91, word: "הוֹאִיל", meaning: "Since" },
+            { id: 92, word: "הַוָה", meaning: "It was" },
+            { id: 93, word: "פָּלִיג", meaning: "Argue/divide" },
+            { id: 94, word: "אַנָא", meaning: "I" },
+            { id: 95, word: "מָצִי", meaning: "Able" },
+            { id: 96, word: "כְּבַר", meaning: "Already" },
+            { id: 97, word: "יָתַב", meaning: "He sat" },
+            { id: 98, word: "חָלַשׁ", meaning: "Sick/weak" },
+            { id: 99, word: "דוּכְתָּא", meaning: "A place" },
+            { id: 100, word: "תְּרֵי", meaning: "Two" }
+        ];
+
+        const DEFAULT_STUDENTS = [
+            "Adler, Gavriel", "Beller, Yishai", "Brodie, Aryeh", "Brody, Eli",
+            "Deutsch, Mordechai", "Frankel, Hillel", "Grossman, Tuvia",
+            "Kahana, Tani", "Kahana, Ariel", "Mandel, Moish", "Reiss, Shlomo",
+            "Renzoni, Dovid", "Rubin, Mordechai", "Salvay, Aviel", "Schiller, Davey",
+            "Schneid, Zorach", "Schwartz, Yitzy", "Schwartz, Yehuda",
+            "Shulman, Nosson", "Spivak, Yeshayahu", "Spivak, Chaim",
+            "Steinman, Yosef", "Tenembaum, Ari", "Wincelberg, Shimon", "Wolf, Yitzy"
+        ];
+
+        const Icons = {
+            Settings: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
+            Play: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+            Check: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            UserMinus: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="22" y1="11" x2="16" y2="11"/></svg>,
+            Shield: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+            Trophy: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>,
+            Zap: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+            Speaker: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>,
+            SpeakerOff: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>,
+            TimerIcon: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            Users: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            FileSpreadsheet: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2v2H8z"/><path d="M14 13h2v2h-2z"/><path d="M8 17h2v2H8z"/><path d="M14 17h2v2h-2z"/><path d="M10 13h4v2h-4z"/><path d="M10 17h4v2h-4z"/></svg>,
+            LogOut: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+            Eye: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+            EyeOff: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+            UserPlus: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M16 11h6"/></svg>,
+            UserCheck: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>,
+            Undo: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>,
+            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+            RefreshCw: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
+            Book: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
+            Crown: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>,
+            Flame: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.1.2-2.2.6-3.3.3.3.4.6.4.8 0 .4-.1.8-.1 1.2 0 1.22.82 2.38 2.1 2.8z"/></svg>,
+            HelpCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+            Star: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>,
+            Clock: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
+            ArrowLeft: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>,
+            ArrowRight: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>,
+            Key: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+        };
+
+        let audioCtx = null;
+        const getAudioCtx = () => {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            return audioCtx;
+        };
+
+        const playStrongBuzzer = () => {
+            try {
+                const ctx = getAudioCtx();
+                const now = ctx.currentTime;
+                const createOsc = (freq, type, detune = 0) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, now);
+                    osc.detune.setValueAtTime(detune, now);
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.2, now + 0.01);
+                    gain.gain.setValueAtTime(0.2, now + 0.4);
+                    gain.gain.linearRampToValueAtTime(0, now + 0.45);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    return osc;
+                };
+                const o1 = createOsc(120, 'square', 0);
+                const o2 = createOsc(124, 'square', 4);
+                const o3 = createOsc(118, 'sawtooth', -4);
+                [o1, o2, o3].forEach(o => { o.start(now); o.stop(now + 0.45); });
+            } catch (e) {}
+        };
+
+        const playSuccessChime = () => {
+            try {
+                const ctx = getAudioCtx();
+                const playNote = (f, s, d) => {
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.type = 'triangle';
+                    o.frequency.setValueAtTime(f, s);
+                    g.gain.setValueAtTime(0, s);
+                    g.gain.linearRampToValueAtTime(0.15, s + 0.05);
+                    g.gain.exponentialRampToValueAtTime(0.01, s + d);
+                    o.connect(g);
+                    g.connect(ctx.destination);
+                    o.start(s); o.stop(s + d);
+                };
+                const now = ctx.currentTime;
+                playNote(523.25, now, 0.2);
+                playNote(659.25, now + 0.1, 0.2);
+                playNote(783.99, now + 0.2, 0.2);
+                playNote(1046.50, now + 0.3, 0.5);
+            } catch (e) {}
+        };
+
+        const playFanfare = () => {
+            try {
+                const ctx = getAudioCtx();
+                const now = ctx.currentTime;
+                const notes = [
+                    { f: 523.25, t: 0, d: 0.2 }, // C4
+                    { f: 659.25, t: 0.1, d: 0.2 }, // E4
+                    { f: 783.99, t: 0.2, d: 0.2 }, // G4
+                    { f: 1046.50, t: 0.3, d: 0.8 }, // C5
+                    { f: 523.25, t: 0.3, d: 0.8 }  // C4 (Low octave for depth)
+                ];
+                notes.forEach(({f, t, d}) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = t === 0.3 ? 'square' : 'triangle'; 
+                    osc.frequency.setValueAtTime(f, now + t);
+                    gain.gain.setValueAtTime(0, now + t);
+                    gain.gain.linearRampToValueAtTime(0.2, now + t + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + t + d);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now + t);
+                    osc.stop(now + t + d);
+                });
+            } catch(e) {}
+        };
+
+        const Confetti = () => {
+            const canvasRef = useRef(null);
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                let width = canvas.width = window.innerWidth;
+                let height = canvas.height = window.innerHeight;
+                
+                const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+                const particles = Array.from({length: 150}, () => ({
+                    x: Math.random() * width,
+                    y: Math.random() * height - height,
+                    w: Math.random() * 10 + 5,
+                    h: Math.random() * 10 + 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    speed: Math.random() * 3 + 2,
+                    drift: Math.random() * 2 - 1,
+                    rotation: Math.random() * 360
+                }));
+
+                let animationId;
+                const render = () => {
+                    ctx.clearRect(0, 0, width, height);
+                    particles.forEach(p => {
+                        p.y += p.speed;
+                        p.x += p.drift;
+                        p.rotation += 2;
+                        
+                        if (p.y > height) p.y = -20;
+                        
+                        ctx.save();
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.rotation * Math.PI / 180);
+                        ctx.fillStyle = p.color;
+                        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+                        ctx.restore();
+                    });
+                    animationId = requestAnimationFrame(render);
+                };
+                render();
+                
+                const handleResize = () => {
+                    width = canvas.width = window.innerWidth;
+                    height = canvas.height = window.innerHeight;
+                };
+                window.addEventListener('resize', handleResize);
+                return () => {
+                    cancelAnimationFrame(animationId);
+                    window.removeEventListener('resize', handleResize);
+                };
+            }, []);
+            return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-50" />;
+        };
+
+        const App = () => {
+            const [gameState, setGameState] = useState('setup'); 
+            const [gameMode, setGameMode] = useState('standard'); 
+            const [useTimer, setUseTimer] = useState(true);
+            const [timerDuration, setTimerDuration] = useState(7);
+            const [soloTimerDuration, setSoloTimerDuration] = useState(60); 
+            const [soundOn, setSoundOn] = useState(true);
+            const [isTeamMode, setIsTeamMode] = useState(false);
+            const [wordLimit, setWordLimit] = useState(100);
+            const [absentStudents, setAbsentStudents] = useState([]);
+            const [isFireRound, setIsFireRound] = useState(false);
+            
+            // Student & Vocab State
+            const [studentsList, setStudentsList] = useState(DEFAULT_STUDENTS);
+            const [vocabularyList, setVocabularyList] = useState(DEFAULT_VOCABULARY);
+            const [showClassManager, setShowClassManager] = useState(false);
+            const [showWordManager, setShowWordManager] = useState(false);
+            const [newStudentName, setNewStudentName] = useState("");
+
+            // Game Logic
+            const [boysQueue, setBoysQueue] = useState([]);
+            const [survivors, setSurvivors] = useState([]);
+            const [wordsPool, setWordsPool] = useState([]);
+            const [currentBoy, setCurrentBoy] = useState(null);
+            const [currentWord, setCurrentWord] = useState(null);
+            const [quizOptions, setQuizOptions] = useState([]);
+            const [correctOptionIndex, setCorrectOptionIndex] = useState(-1);
+            const [timeLeft, setTimeLeft] = useState(7);
+            const [wrongLog, setWrongLog] = useState({});
+            const [dailyStats, setDailyStats] = useState({});
+            const [roundNumber, setRoundNumber] = useState(1);
+            const [isRevealing, setIsRevealing] = useState(false);
+            const [isBuzzerActive, setIsBuzzerActive] = useState(false);
+            const [fireTimerInput, setFireTimerInput] = useState(5);
+            const [showTeacherLog, setShowTeacherLog] = useState(false);
+            const [showTeamsOverlay, setShowTeamsOverlay] = useState(false);
+            const [teamAssignments, setTeamAssignments] = useState({}); 
+            const [teamScores, setTeamScores] = useState({ A: 0, B: 0 });
+            
+            // New Features
+            const [streak, setStreak] = useState(0);
+            const [score, setScore] = useState(0); 
+
+            const [showSoloSelection, setShowSoloSelection] = useState(false); 
+            const [soloStudent, setSoloStudent] = useState("");
+            
+            // Quiz Mode Specific
+            const [showQuizSetup, setShowQuizSetup] = useState(false);
+            const [quizQuestionCount, setQuizQuestionCount] = useState(10);
+            const [quizTimePerQ, setQuizTimePerQ] = useState(0); // 0 means no timer
+            const [quizQuestions, setQuizQuestions] = useState([]); // Array of question objects
+            const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
+            const [showAnswerKey, setShowAnswerKey] = useState(false);
+
+            const [history, setHistory] = useState([]);
+
+            const timerRef = useRef(null);
+            const buzzerTriggeredRef = useRef(false);
+            const fileInputRef = useRef(null);
+            const vocabInputRef = useRef(null);
+
+            // LocalStorage: Load Settings & Data
+            useEffect(() => {
+                const saved = localStorage.getItem('shas_game_settings');
+                const savedStudents = localStorage.getItem('shas_game_students');
+                const savedVocab = localStorage.getItem('shas_game_vocab');
+                const savedDailyStats = localStorage.getItem('shas_daily_stats');
+                
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (parsed.wordLimit) setWordLimit(parsed.wordLimit);
+                        if (parsed.absentStudents) setAbsentStudents(parsed.absentStudents);
+                        if (parsed.timerDuration) setTimerDuration(parsed.timerDuration);
+                        if (parsed.soloTimerDuration) setSoloTimerDuration(parsed.soloTimerDuration);
+                        if (parsed.useTimer !== undefined) setUseTimer(parsed.useTimer);
+                        if (parsed.soundOn !== undefined) setSoundOn(parsed.soundOn);
+                        if (parsed.isTeamMode !== undefined) setIsTeamMode(parsed.isTeamMode);
+                    } catch (e) { console.error("Failed to load settings", e); }
+                }
+                if (savedStudents) {
+                    try { setStudentsList(JSON.parse(savedStudents)); } catch (e) {}
+                }
+                if (savedVocab) {
+                    try { setVocabularyList(JSON.parse(savedVocab)); } catch (e) {}
+                }
+                if (savedDailyStats) {
+                    try {
+                        const parsedStats = JSON.parse(savedDailyStats);
+                        const today = new Date().toDateString();
+                        if (parsedStats.date === today) {
+                            setDailyStats(parsedStats.stats || {});
+                        } else {
+                            setDailyStats({});
+                            localStorage.setItem('shas_daily_stats', JSON.stringify({ date: today, stats: {} }));
+                        }
+                    } catch (e) { setDailyStats({}); }
+                } else {
+                     const today = new Date().toDateString();
+                     localStorage.setItem('shas_daily_stats', JSON.stringify({ date: today, stats: {} }));
+                }
+            }, []);
+
+            // Save Settings
+            useEffect(() => {
+                const settings = { wordLimit, absentStudents, timerDuration, soloTimerDuration, useTimer, soundOn, isTeamMode };
+                localStorage.setItem('shas_game_settings', JSON.stringify(settings));
+            }, [wordLimit, absentStudents, timerDuration, soloTimerDuration, useTimer, soundOn, isTeamMode]);
+            
+            useEffect(() => { localStorage.setItem('shas_game_students', JSON.stringify(studentsList)); }, [studentsList]);
+            useEffect(() => { localStorage.setItem('shas_game_vocab', JSON.stringify(vocabularyList)); }, [vocabularyList]);
+            useEffect(() => {
+                const today = new Date().toDateString();
+                localStorage.setItem('shas_daily_stats', JSON.stringify({ date: today, stats: dailyStats }));
+            }, [dailyStats]);
+
+            useEffect(() => {
+                if (gameState === 'playing' || gameState === 'quiz_playing') {
+                    document.body.classList.add('playing-active');
+                } else {
+                    document.body.classList.remove('playing-active');
+                }
+            }, [gameState]);
+
+            const isWinner = gameState === 'finished' && isFireRound && survivors.length === 1;
+
+            useEffect(() => {
+                if (isWinner && soundOn) { playFanfare(); }
+            }, [isWinner, soundOn]);
+
+            const shuffle = (array) => {
+                const arr = [...array];
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+                return arr;
+            };
+
+            const generateQuizOptions = (word, allWords) => {
+                const isNoneCorrect = Math.random() < 0.25; 
+                let options = [];
+                let correctIdx = -1;
+                if (isNoneCorrect) {
+                    const distractors = shuffle(allWords.filter(w => w.id !== word.id)).slice(0, 3);
+                    options = distractors.map(d => d.meaning);
+                    options.push("None of the above");
+                    correctIdx = 3; 
+                } else {
+                    const distractors = shuffle(allWords.filter(w => w.id !== word.id)).slice(0, 2);
+                    const rawOptions = shuffle([word, ...distractors]);
+                    options = rawOptions.map(o => o.meaning);
+                    options.push("None of the above");
+                    correctIdx = rawOptions.findIndex(o => o.id === word.id);
+                }
+                return { options, correctIdx };
+            };
+
+            // Simplified history for undo (only for standard/solo modes for now)
+            const saveStateToHistory = useCallback(() => {
+                setHistory(prev => [...prev, {
+                    boysQueue: [...boysQueue],
+                    survivors: [...survivors],
+                    wordsPool: [...wordsPool],
+                    currentBoy,
+                    currentWord,
+                    quizOptions,
+                    correctOptionIndex,
+                    timeLeft,
+                    wrongLog: {...wrongLog},
+                    dailyStats: {...dailyStats},
+                    teamScores: {...teamScores},
+                    roundNumber,
+                    streak,
+                    score
+                }]);
+            }, [boysQueue, survivors, wordsPool, currentBoy, currentWord, quizOptions, correctOptionIndex, timeLeft, wrongLog, dailyStats, teamScores, roundNumber, streak, score]);
+
+            const handleUndo = useCallback(() => {
+                if (history.length === 0) return;
+                const prev = history[history.length - 1];
+                setBoysQueue(prev.boysQueue);
+                setSurvivors(prev.survivors);
+                setWordsPool(prev.wordsPool);
+                setCurrentBoy(prev.currentBoy);
+                setCurrentWord(prev.currentWord);
+                setQuizOptions(prev.quizOptions);
+                setCorrectOptionIndex(prev.correctOptionIndex);
+                setTimeLeft(prev.timeLeft);
+                setWrongLog(prev.wrongLog);
+                setDailyStats(prev.dailyStats);
+                setTeamScores(prev.teamScores);
+                setRoundNumber(prev.roundNumber);
+                setStreak(prev.streak);
+                setScore(prev.score);
+                setHistory(h => h.slice(0, -1));
+                setIsRevealing(false);
+                setIsBuzzerActive(false);
+                buzzerTriggeredRef.current = false;
+            }, [history]);
+
+            const handleAddStudent = () => {
+                if (newStudentName.trim()) {
+                    setStudentsList(prev => [...prev, newStudentName.trim()].sort());
+                    setNewStudentName("");
+                }
+            };
+
+            const handleDeleteStudent = (name) => {
+                if (confirm(`Remove ${name} from the class list?`)) {
+                    setStudentsList(prev => prev.filter(s => s !== name));
+                    setAbsentStudents(prev => prev.filter(s => s !== name));
+                }
+            };
+            const handleDeleteAllStudents = () => {
+                if (confirm("Are you sure you want to delete ALL students?")) {
+                    setStudentsList([]);
+                    setAbsentStudents([]);
+                }
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const text = event.target.result;
+                    const names = text.split(/\r?\n/).map(line => line.split(',')[0].trim()).filter(name => name.length > 0 && name.toLowerCase() !== "name" && name.toLowerCase() !== "student");
+                    if (names.length > 0) {
+                        if (confirm(`Replace current class list with ${names.length} names from file?`)) {
+                            setStudentsList(names.sort());
+                            setAbsentStudents([]);
+                        }
+                    } else alert("No valid names found.");
+                };
+                reader.readAsText(file);
+                e.target.value = null; 
+            };
+            const handleResetStudents = () => {
+                if (confirm("Reset class list to original defaults?")) {
+                    setStudentsList(DEFAULT_STUDENTS);
+                    setAbsentStudents([]);
+                }
+            };
+
+            const handleVocabUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const text = event.target.result;
+                    const rows = text.split(/\r?\n/);
+                    const newVocab = [];
+                    rows.forEach(row => {
+                        const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.trim().replace(/^"|"$/g, ''));
+                        if (cols.length >= 3) {
+                            const id = parseInt(cols[0]);
+                            const word = cols[1];
+                            const meaning = cols[2];
+                            if (!isNaN(id) && word && meaning) newVocab.push({ id, word, meaning });
+                        }
+                    });
+                    if (newVocab.length > 0) {
+                        if (confirm(`Imported ${newVocab.length} words. Replace existing list?`)) {
+                            setVocabularyList(newVocab);
+                            setWordLimit(newVocab.length); 
+                        }
+                    } else alert("No valid words found.");
+                };
+                reader.readAsText(file);
+                e.target.value = null;
+            };
+            const handleResetVocab = () => {
+                if (confirm("Reset words to original list?")) setVocabularyList(DEFAULT_VOCABULARY);
+            };
+            const handleResetSettings = () => {
+                if (confirm("Reset word limit and clear absent students?")) {
+                    setWordLimit(vocabularyList.length);
+                    setAbsentStudents([]);
+                }
+            };
+            const handleClearDailyLogs = () => {
+                if (confirm("Clear all student statistics for today?")) setDailyStats({});
+            };
+
+            const initQuizMode = () => {
+                // Generate Quiz Questions
+                const filteredVocab = vocabularyList.filter(v => v.id <= wordLimit);
+                const count = Math.min(quizQuestionCount, filteredVocab.length);
+                const selectedWords = shuffle(filteredVocab).slice(0, count);
+                
+                const questions = selectedWords.map(word => {
+                    const { options, correctIdx } = generateQuizOptions(word, filteredVocab);
+                    return { word, options, correctIdx };
+                });
+                
+                setQuizQuestions(questions);
+                setCurrentQuizIndex(0);
+                setGameMode('quiz');
+                setGameState('quiz_playing');
+                setShowQuizSetup(false);
+                setShowAnswerKey(false);
+                if (quizTimePerQ > 0) setTimeLeft(quizTimePerQ);
+            };
+
+            const startNewGame = (mode) => {
+                if (mode === 'solo') {
+                    setShowSoloSelection(true);
+                    return;
+                }
+                if (mode === 'quiz') {
+                    setShowQuizSetup(true);
+                    return;
+                }
+                initializeGame(mode);
+            };
+
+            const initializeGame = (mode, specificStudent = null) => {
+                const active = shuffle(studentsList.filter(x => !absentStudents.includes(x)));
+                if (active.length === 0) { alert("Please select at least one student!"); return; }
+                const filteredVocab = vocabularyList.filter(v => v.id <= wordLimit);
+                if (filteredVocab.length === 0) { alert("No words in range!"); return; }
+                const w = shuffle(filteredVocab);
+                
+                const assignments = {};
+                if (isTeamMode && mode !== 'solo') {
+                    active.forEach((name, idx) => { assignments[name] = idx % 2 === 0 ? 'A' : 'B'; });
+                }
+
+                setTeamAssignments(assignments);
+                setTeamScores({ A: 0, B: 0 });
+                setBoysQueue(active);
+                setSurvivors([]);
+                setWordsPool(w);
+                setWrongLog({}); 
+                setRoundNumber(1);
+                setIsFireRound(false);
+                setIsRevealing(false);
+                setShowTeacherLog(false);
+                setShowTeamsOverlay(false);
+                buzzerTriggeredRef.current = false;
+                setHistory([]);
+                setStreak(0);
+                setScore(0);
+                setCurrentBoy(mode === 'solo' && specificStudent ? specificStudent : active[0]);
+                setCurrentWord(w[0]);
+                setGameMode(mode);
+                
+                if (mode === 'solo') {
+                    const { options, correctIdx } = generateQuizOptions(w[0], filteredVocab);
+                    setQuizOptions(options);
+                    setCorrectOptionIndex(correctIdx);
+                    setTimeLeft(soloTimerDuration);
+                } else if (useTimer) {
+                    setTimeLeft(timerDuration);
+                }
+                setGameState('playing');
+            };
+
+            const confirmSoloStart = () => {
+                if (!soloStudent) {
+                    const available = studentsList.filter(x => !absentStudents.includes(x));
+                    if (available.length > 0) { setShowSoloSelection(false); initializeGame('solo', available[0]); } 
+                    else alert("No students available!");
+                    return;
+                }
+                setShowSoloSelection(false);
+                initializeGame('solo', soloStudent);
+            };
+
+            const updateDailyStats = (studentName, isMistake) => {
+                 setDailyStats(prev => {
+                     const currentCount = prev[studentName] || 0;
+                     return { ...prev, [studentName]: isMistake ? currentCount + 1 : currentCount };
+                 });
+            };
+
+            const handleCorrect = useCallback(() => {
+                if (isRevealing || isBuzzerActive) return;
+                saveStateToHistory();
+                if (soundOn) playSuccessChime();
+                setIsRevealing(true);
+                setStreak(s => s + 1);
+                if (gameMode === 'solo') {
+                    setScore(s => s + 1);
+                    let w = [...wordsPool]; w.shift();
+                    if (w.length === 0) w = shuffle(vocabularyList.filter(v => v.id <= wordLimit));
+                    setWordsPool(w);
+                    setCurrentWord(w[0]);
+                    const { options, correctIdx } = generateQuizOptions(w[0], vocabularyList.filter(v => v.id <= wordLimit));
+                    setQuizOptions(options);
+                    setCorrectOptionIndex(correctIdx);
+                    setIsRevealing(false);
+                    return;
+                }
+                if (isTeamMode && gameMode !== 'solo') {
+                    const team = teamAssignments[currentBoy];
+                    setTeamScores(prev => ({ ...prev, [team]: prev[team] + 1 }));
+                }
+                setTimeout(() => {
+                    let b = [...boysQueue]; let w = [...wordsPool]; const top = b.shift();
+                    setSurvivors(prev => [...prev, top]); w.shift();
+                    if (w.length === 0) w = shuffle(vocabularyList.filter(v => v.id <= wordLimit));
+                    setWordsPool(w);
+                    if (b.length === 0) setGameState('finished');
+                    else {
+                        setBoysQueue(b); setCurrentBoy(b[0]); setCurrentWord(w[0]);
+                        if (useTimer) setTimeLeft(timerDuration);
+                    }
+                    setIsRevealing(false);
+                }, 1500);
+            }, [isRevealing, isBuzzerActive, soundOn, isTeamMode, teamAssignments, currentBoy, boysQueue, wordsPool, useTimer, timerDuration, wordLimit, vocabularyList, gameMode, saveStateToHistory, soloTimerDuration]);
+
+            const finWrong = useCallback(() => {
+                updateDailyStats(currentBoy, true);
+                if (gameMode === 'solo') {
+                    let w = [...wordsPool]; w.shift();
+                    if (w.length === 0) w = shuffle(vocabularyList.filter(v => v.id <= wordLimit));
+                    setWordsPool(w); setCurrentWord(w[0]);
+                    const { options, correctIdx } = generateQuizOptions(w[0], vocabularyList.filter(v => v.id <= wordLimit));
+                    setQuizOptions(options); setCorrectOptionIndex(correctIdx);
+                    return;
+                }
+                setWrongLog(p => ({...p, [currentBoy]: (p[currentBoy] || 0) + 1}));
+                let b = [...boysQueue]; b.shift();
+                if (b.length === 0) setGameState('finished');
+                else {
+                    setBoysQueue(b); setCurrentBoy(b[0]);
+                    if (useTimer) setTimeLeft(timerDuration);
+                }
+            }, [currentBoy, boysQueue, useTimer, timerDuration, gameMode, wordsPool, vocabularyList, wordLimit]);
+
+            const handleWrong = useCallback((timed = false) => {
+                if (isRevealing || isBuzzerActive) return;
+                saveStateToHistory();
+                setStreak(0); 
+                if (timed) {
+                    if (buzzerTriggeredRef.current) return;
+                    buzzerTriggeredRef.current = true;
+                }
+                if (soundOn) playStrongBuzzer();
+                if (gameMode === 'solo') {
+                    setIsBuzzerActive(true);
+                    setTimeout(() => { setIsBuzzerActive(false); if (timed) buzzerTriggeredRef.current = false; finWrong(); }, 400);
+                    return;
+                }
+                setIsBuzzerActive(true);
+                setTimeout(() => { setIsBuzzerActive(false); if (timed) buzzerTriggeredRef.current = false; finWrong(); }, 800);
+            }, [isRevealing, isBuzzerActive, soundOn, saveStateToHistory, finWrong, gameMode]);
+
+            const handleQuizNav = (direction) => {
+                 if (direction === 'next') {
+                     if (currentQuizIndex < quizQuestions.length - 1) {
+                         setCurrentQuizIndex(prev => prev + 1);
+                         if (quizTimePerQ > 0) setTimeLeft(quizTimePerQ);
+                     } else {
+                         setGameState('quiz_finished');
+                     }
+                 } else {
+                     if (currentQuizIndex > 0) {
+                         setCurrentQuizIndex(prev => prev - 1);
+                         if (quizTimePerQ > 0) setTimeLeft(quizTimePerQ);
+                     }
+                 }
+            };
+
+            const handleQuizAnswer = (index) => {
+                if (index === correctOptionIndex) handleCorrect();
+                else handleWrong(false);
+            };
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (gameState === 'playing' && gameMode !== 'quiz') { // Standard/Solo keys
+                        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') { e.preventDefault(); handleCorrect(); }
+                        if (e.code === 'Backspace' || e.code === 'Delete' || e.code === 'KeyX' || e.code === 'ArrowLeft') { e.preventDefault(); handleWrong(false); }
+                        if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); handleUndo(); }
+                    } else if (gameState === 'quiz_playing') { // Quiz keys
+                         if (e.code === 'ArrowRight') { e.preventDefault(); handleQuizNav('next'); }
+                         if (e.code === 'ArrowLeft') { e.preventDefault(); handleQuizNav('prev'); }
+                    }
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [gameState, gameMode, handleCorrect, handleWrong, handleUndo, currentQuizIndex, quizQuestions]);
+
+            useEffect(() => {
+                // Playing Timer
+                if (gameState === 'playing' && !isRevealing && !isBuzzerActive && !showTeamsOverlay && !showSoloSelection) {
+                    if (gameMode === 'solo') {
+                        if (timeLeft > 0) timerRef.current = setTimeout(() => setTimeLeft(prev => prev - 1), 1000);
+                        else setGameState('finished');
+                    }
+                    else if (useTimer) {
+                        if (timeLeft > 0) timerRef.current = setTimeout(() => setTimeLeft(prev => prev - 1), 1000);
+                        else handleWrong(true);
+                    }
+                }
+                // Quiz Timer (Visual Only)
+                if (gameState === 'quiz_playing' && quizTimePerQ > 0) {
+                    if (timeLeft > 0) timerRef.current = setTimeout(() => setTimeLeft(prev => prev - 1), 1000);
+                }
+                return () => clearTimeout(timerRef.current);
+            }, [timeLeft, gameState, useTimer, isRevealing, isBuzzerActive, showTeamsOverlay, showSoloSelection, handleWrong, gameMode, quizTimePerQ]);
+
+            const nextRound = (fire = false) => {
+                let pool = fire ? shuffle([...survivors]) : shuffle(studentsList.filter(x => !absentStudents.includes(x)));
+                if (pool.length === 0) pool = shuffle(studentsList.filter(x => !absentStudents.includes(x)));
+                if (fire) { setIsFireRound(true); setTimerDuration(fireTimerInput); if (useTimer) setTimeLeft(fireTimerInput); }
+                else { setIsFireRound(false); if (useTimer) setTimeLeft(timerDuration); }
+                setBoysQueue(pool); setSurvivors([]); setRoundNumber(r => r + 1); setHistory([]);
+                setCurrentBoy(pool[0]); setCurrentWord(wordsPool[0]);
+                setGameState('playing'); setShowTeacherLog(false); setShowTeamsOverlay(false); buzzerTriggeredRef.current = false;
+            };
+
+            const toggleManualSurvivor = (name) => {
+                setSurvivors(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+            };
+
+            const exportExcel = () => {
+                const csvRows = [["Student Name", "Team", "Mistakes"]];
+                studentsList.forEach(name => { csvRows.push([name, teamAssignments[name] || "None", wrongLog[name] || 0]); });
+                const csvContent = csvRows.map(e => e.join(",")).join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", `shas_milim_log_${new Date().toLocaleDateString()}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            if (gameState === 'setup') return (
+                <div className="p-4 flex items-center justify-center min-h-screen overflow-auto bg-slate-50">
+                    <div className="max-w-4xl w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 my-8">
+                        <div className="bg-blue-600 p-6 text-white text-center">
+                            <h1 className="text-3xl font-bold mb-1 flex items-center justify-center gap-3"><Icons.Shield /> Shas Milim Gameshow</h1>
+                            <p className="opacity-90 italic text-sm">Interactive Vocabulary Game</p>
+                        </div>
+                        <div className="p-6 grid md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <section><h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-blue-700"><Icons.Settings /> Settings</h2>
+                                <div className="space-y-3">
+                                    <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Word Range (1-{vocabularyList.length})</label>
+                                    <input type="number" min="1" max={vocabularyList.length} value={wordLimit} onChange={e=>setWordLimit(e.target.value)} className="w-full p-2 bg-slate-100 rounded-xl outline-none font-bold" /></div>
+                                    <div className="bg-slate-100 p-3 rounded-xl space-y-3">
+                                        <div className="flex items-center justify-between"><div className="flex items-center gap-2 text-sm font-medium"><Icons.TimerIcon /> Turn Timer (Std/Solo)</div>
+                                        <button onClick={()=>setUseTimer(!useTimer)} className={`relative h-5 w-10 rounded-full transition-colors ${useTimer?'bg-blue-600':'bg-slate-400'}`}><span className={`absolute h-3.5 w-3.5 bg-white rounded-full transition-all ${useTimer?'left-5.5':'left-1'}`}/></button></div>
+                                        {useTimer && <div className="flex items-center justify-between border-t pt-3"><span className="text-xs font-bold text-slate-500">Duration</span>
+                                        <div className="flex gap-1.5">{[7,10,13].map(d=>(<button key={d} onClick={()=>setTimerDuration(d)} className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${timerDuration===d?'bg-blue-600 text-white':'bg-white text-slate-500'}`}>{d}s</button>))}</div></div>}
+                                        <div className="flex items-center justify-between border-t pt-3">
+                                            <span className="text-xs font-bold text-slate-500">Solo Timer</span>
+                                            <input type="number" value={soloTimerDuration} onChange={e=>setSoloTimerDuration(parseInt(e.target.value)||60)} className="w-16 p-1 text-center bg-white rounded-lg text-xs font-bold" />
+                                        </div>
+                                        <div className="flex items-center justify-between border-t pt-3"><div className="flex items-center gap-2 text-sm font-medium"><Icons.Users /> Team Mode</div>
+                                        <button onClick={()=>setIsTeamMode(!isTeamMode)} className={`relative h-5 w-10 rounded-full transition-colors ${isTeamMode?'bg-blue-600':'bg-slate-400'}`}><span className={`absolute h-3.5 w-3.5 bg-white rounded-full transition-all ${isTeamMode?'left-5.5':'left-1'}`}/></button></div>
+                                        <div className="flex items-center justify-between border-t pt-3"><div className="flex items-center gap-2 text-sm font-medium">{soundOn?<Icons.Speaker/>:<Icons.SpeakerOff/>} Sounds</div>
+                                        <button onClick={()=>setSoundOn(!soundOn)} className={`relative h-5 w-10 rounded-full transition-colors ${soundOn?'bg-blue-600':'bg-slate-400'}`}><span className={`absolute h-3.5 w-3.5 bg-white rounded-full transition-all ${soundOn?'left-5.5':'left-1'}`}/></button></div>
+                                        <div className="flex items-center justify-between border-t pt-3"><div className="flex items-center gap-2 text-sm font-medium text-red-500"><Icons.Trash /> Daily Logs</div>
+                                        <button onClick={handleClearDailyLogs} className="bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded-lg text-xs font-bold transition-colors">Clear</button></div>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <button onClick={()=>setShowClassManager(true)} className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs flex-col"><Icons.Users /><span className="text-[10px]">Manage Class</span></button>
+                                        <button onClick={()=>setShowWordManager(true)} className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs flex-col"><Icons.Book /><span className="text-[10px]">Manage Words</span></button>
+                                        <button onClick={handleResetSettings} className="bg-slate-100 hover:bg-red-100 hover:text-red-600 text-slate-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs flex-col"><Icons.RefreshCw /><span className="text-[10px]">Reset All</span></button>
+                                    </div>
+                                </div></section>
+                                <div className="space-y-3">
+                                    <button onClick={() => startNewGame('standard')} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg"><Icons.Play /> Start Standard Game</button>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button onClick={() => startNewGame('quiz')} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all transform active:scale-95 shadow-lg text-sm"><Icons.HelpCircle /> Quiz Mode</button>
+                                        <button onClick={() => startNewGame('solo')} className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all transform active:scale-95 shadow-lg text-sm"><Icons.Zap /> Solo Challenge</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <section>
+                                <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-red-600"><Icons.UserMinus /> Absent Boys</h2>
+                                <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar border p-3 rounded-xl bg-slate-50">
+                                    {studentsList.map(n=>(<button key={n} onClick={()=>setAbsentStudents(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} className={`text-left p-2 rounded-xl border text-xs transition-all ${absentStudents.includes(n)?'bg-red-50 border-red-200 text-red-700 font-bold':'bg-white border-slate-200 hover:border-blue-400'}`}>{n}</button>))}
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    {showClassManager && (
+                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                            <div className="bg-white rounded-[2rem] p-8 max-w-2xl w-full shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+                                <button onClick={()=>setShowClassManager(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full transition-colors"><Icons.X /></button>
+                                <h3 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3"><Icons.Users /> Class Manager</h3>
+                                <div className="flex gap-2 mb-4">
+                                    <input type="text" placeholder="Add student name..." value={newStudentName} onChange={(e) => setNewStudentName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()} className="flex-grow p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 transition-colors" />
+                                    <button onClick={handleAddStudent} className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-xl font-bold"><Icons.Plus /></button>
+                                </div>
+                                <div className="flex-grow overflow-y-auto custom-scrollbar border rounded-xl p-2 bg-slate-50 mb-4 space-y-1">
+                                    {studentsList.map(student => (
+                                        <div key={student} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 group hover:border-blue-200 transition-colors">
+                                            <span className="font-bold text-slate-700">{student}</span>
+                                            <button onClick={() => handleDeleteStudent(student)} className="text-slate-300 hover:text-red-500 transition-colors"><Icons.Trash /></button>
+                                        </div>
+                                    ))}
+                                    {studentsList.length === 0 && <p className="text-center text-slate-400 italic py-4">No students in class list.</p>}
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                                    <div>
+                                        <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                                        <button onClick={() => fileInputRef.current.click()} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-sm"><Icons.Upload /> Import CSV</button>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={handleDeleteAllStudents} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-sm"><Icons.Trash /> Delete All</button>
+                                        <button onClick={handleResetStudents} className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-sm" title="Restore Default Class"><Icons.RefreshCw /></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showWordManager && (
+                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                            <div className="bg-white rounded-[2rem] p-8 max-w-2xl w-full shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+                                <button onClick={()=>setShowWordManager(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full transition-colors"><Icons.X /></button>
+                                <h3 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3"><Icons.Book /> Word Manager</h3>
+                                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-sm text-blue-800 space-y-2">
+                                    <p className="font-bold flex items-center gap-2"><Icons.Upload /> Import Instructions:</p>
+                                    <p>Upload a .csv file with 3 columns (no headers):</p>
+                                    <ul className="list-disc list-inside pl-2 space-y-1 opacity-80">
+                                        <li>Column A: <strong>Number</strong> (e.g., 101)</li>
+                                        <li>Column B: <strong>Hebrew Word</strong> (e.g., גמרא)</li>
+                                        <li>Column C: <strong>Translation</strong> (e.g., Gemara)</li>
+                                    </ul>
+                                </div>
+                                <div className="flex-grow overflow-y-auto custom-scrollbar border rounded-xl p-2 bg-slate-50 mb-4 space-y-1">
+                                    {vocabularyList.slice(0, 100).map(v => (
+                                        <div key={v.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100">
+                                            <span className="font-bold text-slate-400 w-10">#{v.id}</span>
+                                            <span className="font-bold text-slate-800 flex-grow text-right pr-4" dir="rtl">{v.word}</span>
+                                            <span className="text-xs text-slate-500 w-1/3 text-right truncate">{v.meaning}</span>
+                                        </div>
+                                    ))}
+                                    {vocabularyList.length > 100 && <p className="text-center text-slate-400 text-xs py-2">...and {vocabularyList.length - 100} more</p>}
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                                    <div>
+                                        <input type="file" accept=".csv" ref={vocabInputRef} onChange={handleVocabUpload} className="hidden" />
+                                        <button onClick={() => vocabInputRef.current.click()} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-sm"><Icons.Upload /> Import CSV</button>
+                                    </div>
+                                    <button onClick={handleResetVocab} className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-sm"><Icons.RefreshCw /> Restore Defaults</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showSoloSelection && (
+                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                            <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl relative">
+                                <button onClick={()=>setShowSoloSelection(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full transition-colors"><Icons.X /></button>
+                                <h3 className="text-2xl font-black text-slate-800 mb-6 text-center">Select Challenger</h3>
+                                <div className="space-y-4">
+                                    <select value={soloStudent} onChange={(e) => setSoloStudent(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-colors">
+                                        <option value="" disabled>Choose a student...</option>
+                                        {studentsList.filter(x => !absentStudents.includes(x)).map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                    <button onClick={confirmSoloStart} disabled={!soloStudent} className={`w-full py-4 rounded-xl font-black text-lg transition-all ${!soloStudent ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg'}`}>Start Challenge</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showQuizSetup && (
+                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                            <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl relative">
+                                <button onClick={()=>setShowQuizSetup(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full transition-colors"><Icons.X /></button>
+                                <h3 className="text-2xl font-black text-slate-800 mb-6 text-center">Quiz Setup</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Number of Questions</label>
+                                        <input type="number" value={quizQuestionCount} onChange={e=>setQuizQuestionCount(Math.max(1, parseInt(e.target.value)||1))} className="w-full p-3 bg-slate-50 rounded-xl font-bold" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Timer per Question (0 for none)</label>
+                                        <div className="flex gap-2">
+                                            {[0, 10, 20, 30].map(t => (
+                                                <button key={t} onClick={()=>setQuizTimePerQ(t)} className={`flex-1 py-2 rounded-lg font-bold ${quizTimePerQ===t ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{t===0 ? 'None' : t+'s'}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <button onClick={initQuizMode} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-lg shadow-lg mt-4">Start Quiz</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+            
+            // Quiz Mode Gameplay View
+            if (gameState === 'quiz_playing') {
+                const currentQ = quizQuestions[currentQuizIndex];
+                
+                return (
+                    <div className="h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+                        <div className="w-full max-w-6xl flex flex-col h-full max-h-screen">
+                            {/* Header */}
+                            <div className="flex justify-between items-center text-white/60 mb-6 shrink-0">
+                                <div className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest">
+                                    Question {currentQuizIndex + 1} of {quizQuestions.length}
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <button onClick={()=>setGameState('setup')} className="text-white/40 hover:text-white font-bold text-xs uppercase tracking-widest transition-colors">Exit Quiz</button>
+                                </div>
+                            </div>
+                            
+                            {/* Main Content */}
+                            <div className="flex-grow bg-white rounded-[2.5rem] p-12 shadow-2xl relative overflow-hidden flex flex-col">
+                                {quizTimePerQ > 0 && (
+                                    <div className="absolute top-0 left-0 w-full bg-slate-100 h-2">
+                                        <div 
+                                            className="h-full bg-indigo-500 transition-all duration-1000 ease-linear" 
+                                            style={{ width: `${(timeLeft / quizTimePerQ) * 100}%` }} 
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="flex-grow flex flex-col justify-center items-center text-center mb-12">
+                                    <h2 className="text-8xl md:text-9xl font-black text-slate-800" dir="rtl">{currentQ.word.word}</h2>
+                                </div>
+                                
+                                {/* Options Grid - Non-clickable */}
+                                <div className="grid grid-cols-2 gap-6">
+                                    {currentQ.options.map((opt, i) => (
+                                        <div key={i} className="flex items-center p-6 bg-slate-50 border-2 border-slate-100 rounded-2xl">
+                                            <div className="w-12 h-12 bg-white rounded-xl border-2 border-indigo-100 text-indigo-600 font-black text-xl flex items-center justify-center shrink-0 mr-4">
+                                                {String.fromCharCode(65 + i)}
+                                            </div>
+                                            <span className="text-xl font-bold text-slate-700">{opt}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            {/* Navigation Footer */}
+                            <div className="flex justify-between items-center mt-6 h-20 shrink-0">
+                                <button 
+                                    onClick={() => handleQuizNav('prev')} 
+                                    disabled={currentQuizIndex === 0}
+                                    className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-lg transition-all ${currentQuizIndex === 0 ? 'bg-white/5 text-white/20 cursor-not-allowed' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                                >
+                                    <Icons.ArrowLeft /> Previous
+                                </button>
+
+                                {quizTimePerQ > 0 && (
+                                    <div className="flex flex-col items-center">
+                                        <span className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Time Remaining</span>
+                                        <div className="text-4xl font-black text-white">{timeLeft}</div>
+                                    </div>
+                                )}
+
+                                <button 
+                                    onClick={() => handleQuizNav('next')}
+                                    className="flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-lg shadow-lg shadow-indigo-900/50 transition-all active:scale-95"
+                                >
+                                    {currentQuizIndex === quizQuestions.length - 1 ? 'Finish Quiz' : 'Next Question'} <Icons.ArrowRight />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (gameState === 'quiz_finished') {
+                return (
+                    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+                        <div className="max-w-4xl w-full bg-white rounded-[3rem] p-10 shadow-2xl relative overflow-hidden text-center">
+                            <div className="mb-8">
+                                <div className="w-24 h-24 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <Icons.Check />
+                                </div>
+                                <h1 className="text-5xl font-black text-slate-800 mb-2">Quiz Complete!</h1>
+                                <p className="text-slate-500 font-medium">Review the results below</p>
+                            </div>
+                            
+                            {!showAnswerKey ? (
+                                <button 
+                                    onClick={() => setShowAnswerKey(true)}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 px-12 rounded-2xl text-xl shadow-xl transition-all transform hover:scale-105"
+                                >
+                                    Reveal Answer Key
+                                </button>
+                            ) : (
+                                <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <div className="max-h-[50vh] overflow-y-auto custom-scrollbar border rounded-2xl">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="bg-slate-100 sticky top-0">
+                                                <tr>
+                                                    <th className="p-4 font-black text-slate-400 text-xs uppercase tracking-widest">#</th>
+                                                    <th className="p-4 font-black text-slate-400 text-xs uppercase tracking-widest text-right">Word</th>
+                                                    <th className="p-4 font-black text-slate-400 text-xs uppercase tracking-widest">Answer</th>
+                                                    <th className="p-4 font-black text-slate-400 text-xs uppercase tracking-widest">Definition</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {quizQuestions.map((q, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50">
+                                                        <td className="p-4 font-bold text-slate-400">{i + 1}</td>
+                                                        <td className="p-4 font-bold text-slate-800 text-xl text-right" dir="rtl">{q.word.word}</td>
+                                                        <td className="p-4">
+                                                            <span className="bg-indigo-100 text-indigo-700 font-black px-3 py-1 rounded-lg">
+                                                                {String.fromCharCode(65 + q.correctIdx)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 text-slate-600 font-medium text-sm">{q.word.meaning}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                            
+                            <div className="mt-8 pt-8 border-t border-slate-100 flex justify-center">
+                                <button onClick={() => setGameState('setup')} className="text-slate-400 hover:text-slate-600 font-bold uppercase tracking-widest text-xs">Return to Menu</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (gameState === 'playing') return (
+                <div className="h-screen bg-slate-900 flex flex-col items-center justify-center p-2 relative">
+                    <div className="w-full max-w-5xl flex flex-col h-full max-h-screen">
+                        <div className="flex justify-between items-center text-white/60 mb-2 px-4 shrink-0">
+                            <div className="flex items-center gap-2">
+                                <span className={`bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase ${gameMode === 'solo' ? 'invisible' : ''}`}>Round {roundNumber}</span>
+                                {isFireRound && <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-2"><Icons.Zap /> Fire</span>}
+                            </div>
+                            
+                            {isTeamMode && gameMode !== 'solo' && (
+                                <div className="flex items-center gap-6 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full shadow-inner">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Team A</span>
+                                        <span className="text-xl font-black text-white">{teamScores.A}</span>
+                                    </div>
+                                    <div className="w-px h-4 bg-white/20" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-red-400 uppercase tracking-widest">Team B</span>
+                                        <span className="text-xl font-black text-white">{teamScores.B}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center gap-3">
+                                {gameMode === 'solo' && (
+                                     <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest bg-yellow-500 text-white border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.5)]`}>
+                                        <Icons.Star />
+                                        <span>Score: {score}</span>
+                                    </div>
+                                )}
+                                {streak > 1 && (
+                                    <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest animate-pop-in ${streak >= 10 ? 'bg-red-500 text-white border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : streak >= 5 ? 'bg-orange-500 text-white border-orange-400' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+                                        <span className={`${streak >= 10 ? 'animate-flame' : ''}`}><Icons.Flame /></span>
+                                        <span>Streak {streak}</span>
+                                    </div>
+                                )}
+                                <button onClick={handleUndo} disabled={history.length === 0} className={`flex items-center gap-1 text-[10px] font-black transition-colors uppercase tracking-widest px-3 py-1.5 rounded-lg border ${history.length === 0 ? 'bg-slate-800 text-slate-600 border-transparent cursor-not-allowed' : 'bg-blue-500/20 text-blue-300 border-blue-500/20 hover:text-white'}`}><Icons.Undo /><span className="hidden sm:inline ml-1">Undo</span></button>
+                                {isTeamMode && gameMode !== 'solo' && (
+                                    <button onClick={()=>setShowTeamsOverlay(true)} className="flex items-center gap-1 text-[10px] font-black hover:text-white transition-colors uppercase tracking-widest bg-blue-500/20 px-3 py-1.5 rounded-lg border border-blue-500/20 text-blue-300"><Icons.Users /><span className="hidden sm:inline ml-1">Teams</span></button>
+                                )}
+                                <button onClick={()=>setGameState('setup')} className="flex items-center gap-1 text-[10px] font-black hover:text-white transition-colors uppercase tracking-widest bg-white/10 px-3 py-1.5 rounded-lg border border-white/10"><Icons.Settings /><span className="hidden sm:inline ml-1">Settings</span></button>
+                                <button onClick={()=>setGameState('finished')} className="flex items-center gap-1 text-[10px] font-black hover:text-white transition-colors uppercase tracking-widest bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400"><Icons.LogOut /><span className="hidden sm:inline ml-1">End Game</span></button>
+                                {gameMode !== 'solo' && <div className="text-lg font-black text-white ml-2">{boysQueue.length} Boys</div>}
+                            </div>
+                        </div>
+
+                        <div className={`flex-grow bg-white rounded-[2rem] px-8 py-4 shadow-2xl relative overflow-hidden flex flex-col justify-between transition-all ${isBuzzerActive ? 'buzzer-shake border-8 border-red-500 bg-red-50' : ''}`}>
+                            {((useTimer && gameMode !== 'solo') || gameMode === 'solo') && (
+                                <div className="absolute top-0 left-0 w-full bg-slate-100 h-1.5">
+                                    <div 
+                                        className={`h-full transition-all duration-1000 ease-linear ${timeLeft < (gameMode === 'solo' ? 10 : 3) ? 'bg-red-500' : 'bg-blue-500'}`} 
+                                        style={{ width: `${(timeLeft / (gameMode === 'solo' ? soloTimerDuration : timerDuration)) * 100}%` }} 
+                                    />
+                                </div>
+                            )}
+                            
+                            <div className="text-center mt-2 shrink-0">
+                                <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full ${isTeamMode && gameMode !== 'solo' ? (teamAssignments[currentBoy] === 'A' ? 'bg-blue-50 text-blue-500' : 'bg-red-50 text-red-500') : 'text-slate-400'}`}>
+                                    {gameMode === 'solo' ? 'Solo Challenger' : (isTeamMode ? `Team ${teamAssignments[currentBoy]} Turn` : 'Active Boy')}
+                                </span>
+                                <h2 className="text-4xl font-black text-slate-800 mt-1">{currentBoy}</h2>
+                            </div>
+                            
+                            {/* Standard Mode UI */}
+                            <div className={`flex-grow my-4 rounded-[1.5rem] border-4 border-double flex flex-col items-center justify-center transition-colors ${isBuzzerActive?'bg-red-100 border-red-600':'bg-slate-50 border-slate-200'}`}>
+                                <h3 className={`text-7xl md:text-8xl lg:text-9xl font-black transition-colors select-none ${isBuzzerActive?'text-red-700':'text-blue-600'}`} dir="rtl">{currentWord?.word}</h3>
+                                {isRevealing && <div className="mt-2 animate-bounce"><p className="text-green-600 text-2xl font-black bg-white px-8 py-2 rounded-xl shadow-lg border-2 border-green-100">{currentWord?.meaning}</p></div>}
+                            </div>
+
+                            <div className="flex justify-center shrink-0 mb-2">
+                                {((useTimer && gameMode !== 'solo') || gameMode === 'solo') ? 
+                                    <div className={`w-14 h-14 rounded-full border-4 flex items-center justify-center text-xl font-black ${timeLeft===0?'border-red-700 text-red-700':timeLeft<(gameMode==='solo'?10:3)?'border-red-500 text-red-500 animate-pulse':'border-blue-500 text-blue-500'}`}>{timeLeft}</div> 
+                                : <div className="h-14"/>}
+                            </div>
+                        </div>
+
+                        {/* Standard Mode Buttons - Hidden in Quiz/Solo Mode */}
+                        {gameMode === 'standard' && (
+                            <div className="grid grid-cols-2 gap-4 mt-4 h-24 shrink-0">
+                                <button disabled={isRevealing||isBuzzerActive} onClick={()=>handleWrong(false)} className={`bg-red-500 text-white rounded-[1.5rem] text-xl font-black flex flex-col items-center justify-center border-b-4 border-red-700 active:translate-y-1 active:border-b-0 ${isRevealing||isBuzzerActive?'opacity-50 grayscale':''}`}><Icons.X /> INCORRECT</button>
+                                <button disabled={isRevealing||isBuzzerActive} onClick={handleCorrect} className={`bg-green-500 text-white rounded-[1.5rem] text-xl font-black flex flex-col items-center justify-center border-b-4 border-green-700 active:translate-y-1 active:border-b-0 ${isRevealing||isBuzzerActive?'bg-green-600 opacity-90':''}`}><Icons.Check /> {isRevealing?'REVEAL':'CORRECT'}</button>
+                            </div>
+                        )}
+                        {/* Solo Mode Buttons */}
+                        {gameMode === 'solo' && (
+                             <div className="grid grid-cols-2 gap-4 mt-4 h-24 shrink-0">
+                                 {quizOptions.map((opt, i) => (
+                                     <button 
+                                         key={i}
+                                         onClick={() => handleQuizAnswer(i)}
+                                         disabled={isRevealing || isBuzzerActive}
+                                         className={`rounded-[1.5rem] text-lg font-bold flex flex-col items-center justify-center border-b-4 active:translate-y-1 active:border-b-0 ${isRevealing ? (i === correctOptionIndex ? 'bg-green-500 text-white border-green-700' : 'bg-slate-200 text-slate-400 border-slate-300') : 'bg-white text-slate-700 border-slate-200 hover:border-blue-500 hover:text-blue-600'}`}
+                                     >
+                                         {String.fromCharCode(65 + i)}. {opt}
+                                     </button>
+                                 ))}
+                             </div>
+                        )}
+                    </div>
+
+                    {showTeamsOverlay && (
+                        <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-8 z-50 animate-in fade-in duration-200">
+                            <div className="bg-white rounded-[2.5rem] p-8 max-w-2xl w-full shadow-2xl relative overflow-hidden">
+                                <button onClick={()=>setShowTeamsOverlay(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full transition-colors"><Icons.X /></button>
+                                <h3 className="text-center text-3xl font-black text-slate-800 mb-8 uppercase tracking-widest flex items-center justify-center gap-3"><Icons.Users /> The Teams</h3>
+                                <div className="grid grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <div className="bg-blue-600 text-white p-3 rounded-xl text-center font-black uppercase">Team A</div>
+                                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar space-y-2">
+                                            {studentsList.filter(n => teamAssignments[n] === 'A' && !absentStudents.includes(n)).map(n => (
+                                                <div key={n} className="bg-blue-50 text-blue-700 p-3 rounded-lg font-bold text-sm text-center border border-blue-100">{n}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="bg-red-600 text-white p-3 rounded-xl text-center font-black uppercase">Team B</div>
+                                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar space-y-2">
+                                            {studentsList.filter(n => teamAssignments[n] === 'B' && !absentStudents.includes(n)).map(n => (
+                                                <div key={n} className="bg-red-50 text-red-700 p-3 rounded-lg font-bold text-sm text-center border border-red-100">{n}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+
+            if (gameState === 'finished') {
+                if (isWinner) {
+                    return (
+                        <div className="fixed inset-0 flex items-center justify-center bg-slate-900 z-50">
+                            <Confetti />
+                            <div className="text-center animate-pop-in relative z-10">
+                                <div className="w-32 h-32 bg-yellow-400 text-yellow-900 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl border-4 border-white">
+                                    <Icons.Crown />
+                                </div>
+                                <h1 className="text-4xl font-black text-white/80 uppercase tracking-widest mb-4">Fire Round Champion</h1>
+                                <div className="bg-white text-slate-900 px-12 py-8 rounded-[3rem] shadow-2xl border-8 border-yellow-400">
+                                    <h2 className="text-6xl md:text-8xl font-black tracking-tight">{survivors[0]}</h2>
+                                </div>
+                                <div className="mt-12 flex gap-4 justify-center">
+                                    <button onClick={()=>setGameState('setup')} className="bg-white/20 hover:bg-white/30 text-white font-bold py-3 px-8 rounded-xl transition-all">New Game</button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+
+                if (gameMode === 'solo') {
+                     return (
+                        <div className="fixed inset-0 flex items-center justify-center bg-slate-900 z-50">
+                            <Confetti />
+                            <div className="text-center animate-pop-in relative z-10">
+                                <div className="w-32 h-32 bg-indigo-500 text-white rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl border-4 border-white">
+                                    <Icons.Star />
+                                </div>
+                                <h1 className="text-4xl font-black text-white/80 uppercase tracking-widest mb-4">Solo Challenge Complete</h1>
+                                <div className="bg-white text-slate-900 px-12 py-8 rounded-[3rem] shadow-2xl border-8 border-indigo-500 mb-8">
+                                    <h2 className="text-2xl font-bold text-slate-500 uppercase tracking-widest mb-2">{currentBoy}</h2>
+                                    <h2 className="text-8xl font-black tracking-tight text-indigo-600">{score}</h2>
+                                    <p className="text-slate-400 font-bold mt-2 uppercase">Correct Answers</p>
+                                </div>
+                                <div className="flex gap-4 justify-center">
+                                    <button onClick={()=>startNewGame('solo')} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg">Try Again</button>
+                                    <button onClick={()=>setGameState('setup')} className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-8 rounded-xl transition-all">Main Menu</button>
+                                </div>
+                            </div>
+                        </div>
+                     );
+                }
+
+                return (
+                    <div className="min-h-screen p-4 flex items-center justify-center overflow-auto bg-slate-50">
+                        <div className={`w-full max-w-5xl flex flex-col md:flex-row gap-6 my-8 items-start justify-center`}>
+                            <div className={`${showTeacherLog ? 'flex-grow' : 'max-w-2xl w-full'} bg-white rounded-[3rem] shadow-2xl p-8 text-center border relative overflow-hidden flex flex-col justify-center transition-all duration-500`}>
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-green-500 to-red-500" />
+                                <div className="w-20 h-20 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icons.Trophy /></div>
+                                
+                                {isTeamMode && (
+                                    <div className="mb-6 flex items-center justify-center gap-8">
+                                        <div className={`text-center transition-all ${teamScores.A >= teamScores.B ? 'scale-110' : 'opacity-50'}`}>
+                                            <span className="block text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Team A</span>
+                                            <span className="text-4xl font-black text-slate-800">{teamScores.A}</span>
+                                        </div>
+                                        <span className="text-slate-200 font-black text-2xl italic">VS</span>
+                                        <div className={`text-center transition-all ${teamScores.B >= teamScores.A ? 'scale-110' : 'opacity-50'}`}>
+                                            <span className="block text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Team B</span>
+                                            <span className="text-4xl font-black text-slate-800">{teamScores.B}</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <h1 className="text-4xl font-black text-slate-800">Round {roundNumber} Over!</h1>
+                                <div className="grid gap-3 mt-6">
+                                    <button onClick={()=>nextRound(false)} className="bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all">START NEXT ROUND</button>
+                                    <div className="flex gap-2">
+                                        <button disabled={survivors.length===0} onClick={()=>nextRound(true)} className={`flex-grow py-4 rounded-2xl font-black text-lg ${survivors.length===0?'bg-slate-100 text-slate-400':'bg-orange-500 hover:bg-orange-600 text-white shadow-lg'} active:scale-95 transition-all`}><Icons.Zap /> FIRE ROUND</button>
+                                        <div className="bg-slate-50 border rounded-2xl p-2 px-4 flex flex-col items-center justify-center shrink-0">
+                                            <span className="text-[8px] font-black text-slate-400 uppercase">Fire Timer</span>
+                                            <div className="flex items-center gap-1">
+                                                <input type="number" value={fireTimerInput} onChange={e=>setFireTimerInput(parseInt(e.target.value)||1)} className="w-10 text-center font-black text-orange-600 bg-transparent outline-none text-lg" />
+                                                <span className="text-[10px] font-bold text-slate-400">s</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button onClick={()=>setGameState('setup')} className="text-slate-400 font-bold hover:text-slate-600 mt-2 py-2">Reset & New Session</button>
+                                    <div className="border-t border-slate-100 mt-4 pt-4 flex justify-center"><button onClick={() => setShowTeacherLog(!showTeacherLog)} className="text-slate-400 hover:text-blue-600 font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-colors">{showTeacherLog ? <Icons.EyeOff /> : <Icons.Eye />} {showTeacherLog ? 'Hide Log' : 'View Teacher Log'}</button></div>
+                                </div>
+                            </div>
+
+                            {showTeacherLog && (
+                                <div className="w-full md:w-80 bg-white rounded-[2rem] shadow-xl p-6 border flex flex-col max-h-[500px]">
+                                    <div className="flex justify-between items-center mb-4 shrink-0">
+                                        <div className="flex flex-col">
+                                            <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">Stats & Revive</h3>
+                                            <p className="text-[8px] text-slate-400 font-bold uppercase italic">Click icon to toggle Survivor</p>
+                                        </div>
+                                        <button onClick={exportExcel} className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-[10px] font-black uppercase"><Icons.FileSpreadsheet /> Export</button>
+                                    </div>
+                                    <div className="flex-grow overflow-y-auto custom-scrollbar space-y-2 pr-2">
+                                        {studentsList.filter(n => !absentStudents.includes(n)).map(name => (
+                                            <div key={name} className={`flex justify-between items-center p-2 px-3 rounded-lg border transition-all ${survivors.includes(name) ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200 opacity-80'}`}>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-bold text-slate-700">{name}</span>
+                                                    {isTeamMode && teamAssignments[name] && <span className={`text-[8px] font-black ${teamAssignments[name] === 'A' ? 'text-blue-400' : 'text-red-400'}`}>TEAM {teamAssignments[name]}</span>}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-black text-slate-400">{wrongLog[name] || 0}</span>
+                                                    <button 
+                                                        onClick={() => toggleManualSurvivor(name)}
+                                                        className={`p-1.5 rounded-lg transition-all ${survivors.includes(name) ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-400 hover:bg-slate-300'}`}
+                                                    >
+                                                        {survivors.includes(name) ? <Icons.UserCheck /> : <Icons.UserPlus />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
